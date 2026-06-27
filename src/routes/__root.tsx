@@ -8,29 +8,31 @@ import {
 import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
-import { reportLovableError } from "../lib/lovable-error-reporting";
+import { reportLovableError } from "@/lib/lovable-error-reporting";
 
-// Import all pages
-import { LandingPage } from "../pages/LandingPage";
-import { LoginPage } from "../pages/LoginPage";
-import { RegisterPage } from "../pages/RegisterPage";
-import { AdminDashboardPage } from "../pages/admin/AdminDashboardPage";
-import { AdminTasksPage } from "../pages/admin/AdminTasksPage";
-import { AdminUsersPage } from "../pages/admin/AdminUsersPage";
-import { ProfilePage } from "../pages/ProfilePage";
-import { AccessDeniedPage } from "../pages/AccessDeniedPage";
-import { UserDashboardPage } from "../pages/user/UserDashboardPage";
-import { UserTasksPage } from "../pages/user/UserTasksPage";
-import { CreateTaskPage } from "../pages/tasks/CreateTaskPage";
-import { EditTaskPage } from "../pages/tasks/EditTaskPage";
-import { TaskDetailsPage } from "../pages/tasks/TaskDetailsPage";
+import { LandingPage } from "@/pages/LandingPage";
+import { LoginPage } from "@/pages/LoginPage";
+import { RegisterPage } from "@/pages/RegisterPage";
+import { AdminDashboardPage } from "@/pages/admin/AdminDashboardPage";
+import { AdminTasksPage } from "@/pages/admin/AdminTasksPage";
+import { AdminUsersPage } from "@/pages/admin/AdminUsersPage";
+import { ProfilePage } from "@/pages/ProfilePage";
+import { AccessDeniedPage } from "@/pages/AccessDeniedPage";
+import { UserDashboardPage } from "@/pages/user/UserDashboardPage";
+import { UserTasksPage } from "@/pages/user/UserTasksPage";
+import { CreateTaskPage } from "@/pages/tasks/CreateTaskPage";
+import { EditTaskPage } from "@/pages/tasks/EditTaskPage";
+import { TaskDetailsPage } from "@/pages/tasks/TaskDetailsPage";
+import { requireAdmin, requireAuth, requireUser } from "@/lib/auth-route";
 
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">
+          Page not found
+        </h2>
         <p className="mt-2 text-sm text-muted-foreground">
           The page you're looking for doesn't exist or has been moved.
         </p>
@@ -50,6 +52,7 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
@@ -73,6 +76,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           >
             Try again
           </button>
+
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
@@ -84,8 +88,6 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     </div>
   );
 }
-
-// Shell removed for pure SPA
 
 function RootComponent() {
   const { queryClient } = rootRoute.useRouteContext();
@@ -104,23 +106,99 @@ const rootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   errorComponent: ErrorComponent,
 });
 
-const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", component: LandingPage });
-const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: "/login", component: LoginPage });
-const registerRoute = createRoute({ getParentRoute: () => rootRoute, path: "/register", component: RegisterPage });
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  component: LandingPage,
+});
 
-const adminDashboardRoute = createRoute({ getParentRoute: () => rootRoute, path: "/admin/dashboard", component: AdminDashboardPage });
-const adminTasksRoute = createRoute({ getParentRoute: () => rootRoute, path: "/admin/tasks", component: AdminTasksPage });
-const adminUsersRoute = createRoute({ getParentRoute: () => rootRoute, path: "/admin/users", component: AdminUsersPage });
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/login",
+  component: LoginPage,
+});
 
-const userDashboardRoute = createRoute({ getParentRoute: () => rootRoute, path: "/user/dashboard", component: UserDashboardPage });
-const userTasksRoute = createRoute({ getParentRoute: () => rootRoute, path: "/user/tasks", component: UserTasksPage });
+const registerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/register",
+  component: RegisterPage,
+});
 
-const createTaskRoute = createRoute({ getParentRoute: () => rootRoute, path: "/tasks/create", component: CreateTaskPage });
-const editTaskRoute = createRoute({ getParentRoute: () => rootRoute, path: "/tasks/$id/edit", component: EditTaskPage });
-const taskDetailsRoute = createRoute({ getParentRoute: () => rootRoute, path: "/tasks/$id", component: TaskDetailsPage });
+const adminDashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/dashboard",
+  beforeLoad: requireAdmin,
+  component: AdminDashboardPage,
+});
 
-const profileRoute = createRoute({ getParentRoute: () => rootRoute, path: "/profile", component: ProfilePage });
-const accessDeniedRoute = createRoute({ getParentRoute: () => rootRoute, path: "/access-denied", component: AccessDeniedPage });
+const adminTasksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/tasks",
+  beforeLoad: requireAdmin,
+  component: AdminTasksPage,
+});
+
+const adminUsersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/users",
+  beforeLoad: requireAdmin,
+  component: AdminUsersPage,
+});
+
+const userDashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/dashboard",
+  beforeLoad: requireUser,
+  component: UserDashboardPage,
+});
+
+const legacyUserDashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/user/dashboard",
+  beforeLoad: requireUser,
+  component: UserDashboardPage,
+});
+
+const userTasksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/user/tasks",
+  beforeLoad: requireUser,
+  component: UserTasksPage,
+});
+
+const createTaskRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/tasks/create",
+  beforeLoad: requireAuth,
+  component: CreateTaskPage,
+});
+
+const editTaskRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/tasks/$id/edit",
+  beforeLoad: requireAuth,
+  component: EditTaskPage,
+});
+
+const taskDetailsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/tasks/$id",
+  beforeLoad: requireAuth,
+  component: TaskDetailsPage,
+});
+
+const profileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/profile",
+  beforeLoad: requireAuth,
+  component: ProfilePage,
+});
+
+const accessDeniedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/access-denied",
+  component: AccessDeniedPage,
+});
 
 export const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -130,6 +208,7 @@ export const routeTree = rootRoute.addChildren([
   adminTasksRoute,
   adminUsersRoute,
   userDashboardRoute,
+  legacyUserDashboardRoute,
   userTasksRoute,
   createTaskRoute,
   editTaskRoute,

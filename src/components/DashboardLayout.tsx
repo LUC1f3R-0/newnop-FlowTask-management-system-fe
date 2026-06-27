@@ -35,7 +35,7 @@ const adminNav: NavItem[] = [
 ];
 
 const userNav: NavItem[] = [
-  { label: "Dashboard", to: "/user/dashboard", icon: LayoutDashboard },
+  { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
   { label: "My Tasks", to: "/user/tasks", icon: ListTodo },
   { label: "Create Task", to: "/tasks/create", icon: PlusCircle },
   { label: "Profile", to: "/profile", icon: UserIcon },
@@ -49,13 +49,16 @@ export function DashboardLayout({
   children: ReactNode;
 }) {
   const nav = role === "admin" ? adminNav : userNav;
+  const roleLabel = role === "admin" ? "Admin" : "User";
+  const displayName = role === "admin" ? "Admin User" : "Normal User";
+  const email = role === "admin" ? "admin@gmail.com" : "user@gmail.com";
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
   const handleLogout = async () => {
-      await axiosApiInstance.post("/auth/logout");
     try {
+      await axiosApiInstance.post('/auth/logout');
       toast.success("Logged out successfully");
       navigate({ to: "/login" });
     } catch {
@@ -70,7 +73,7 @@ export function DashboardLayout({
         </span>
         <span className="font-semibold">FlowTask</span>
         <span className="ml-auto text-[10px] uppercase tracking-wider rounded-md px-1.5 py-0.5 bg-sidebar-accent text-sidebar-accent-foreground">
-          {role}
+          {roleLabel}
         </span>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
@@ -139,6 +142,10 @@ export function DashboardLayout({
             <Input placeholder="Search..." className="pl-9 h-9" />
           </div>
           <div className="ml-auto flex items-center gap-3">
+            <div className="hidden sm:inline-flex items-center rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+              Role: <span className="ml-1 text-foreground">{roleLabel}</span>
+            </div>
+
             <Button variant="ghost" size="icon">
               <Bell className="h-5 w-5" />
             </Button>

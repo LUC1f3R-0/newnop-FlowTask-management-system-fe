@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { AxiosError } from "axios";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { CheckSquare, Eye, EyeOff } from "lucide-react";
 import { axiosApiInstance } from "@/lib/apiInstance";
+import { getAuthUser } from "@/lib/auth-route";
 import { OtpVerificationModal } from "@/components/OtpVerificationModal";
 import { toast } from "sonner";
 
@@ -21,6 +22,23 @@ type OtpFormValues = {
   otp: string;
 };
 
+type AuthUser = {
+  uuid: string;
+  name: string;
+  email: string;
+  role: "ADMIN" | "USER";
+  isEmailVerified: boolean;
+};
+
+type LoginResponse = {
+  success?: boolean;
+  message?: string;
+  data?: {
+    user?: AuthUser;
+  };
+  user?: AuthUser;
+};
+
 type ApiErrorResponse = {
   code?: string;
   email?: string;
@@ -30,20 +48,6 @@ type ApiErrorResponse = {
     email?: string;
     message?: string;
   };
-};
-
-type AuthUser = {
-  uuid: string;
-  name: string;
-  email: string;
-  role: "ADMIN" | "USER";
-  isEmailVerified: boolean;
-};
-
-type ApiSuccessResponse<T> = {
-  success?: boolean;
-  message?: string;
-  data?: T;
 };
 
 const loginValidationSchema = Yup.object({
@@ -59,7 +63,7 @@ const loginValidationSchema = Yup.object({
 
 const otpValidationSchema = Yup.object({
   otp: Yup.string()
-    .matches(/^\d{5}$/, "OTP must be exactly 6 digits")
+    .matches(/^\d{6}$/, "OTP must be exactly 6 digits")
     .required("OTP is required"),
 });
 
@@ -104,18 +108,12 @@ function getEmailNotVerifiedPayload(error: unknown) {
   };
 }
 
-function getUserFromLoginResponse(responseData: ApiSuccessResponse<{ user: AuthUser }> & {
-  user?: AuthUser;
-}) {
-  return responseData.data?.user ?? responseData.user;
-}
-
 function getDashboardRoute(user?: AuthUser) {
   if (user?.role === "ADMIN") {
     return "/admin/dashboard";
   }
 
-  return "/user/dashboard";
+  return "/dashboard";
 }
 
 export function LoginPage() {
@@ -124,6 +122,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState("");
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   const otpFormik = useFormik<OtpFormValues>({
     initialValues: {
@@ -134,19 +133,15 @@ export function LoginPage() {
     validateOnChange: true,
     onSubmit: async (values) => {
       try {
-        const response = await axiosApiInstance.post("/auth/verify-email", {
+        await axiosApiInstance.post("/auth/verify-email", {
           email: verificationEmail,
           otp: values.otp,
         });
 
-        const message =
-          response.data?.message ?? "Email verified successfully. Please log in again.";
-
-        toast.success(message);
+        toast.success("Email verified successfully. Please log in again.");
 
         setIsOtpModalOpen(false);
         otpFormik.resetForm();
-        loginFormik.setFieldValue("password", "");
       } catch (error) {
         toast.error(getErrorMessage(error, "Email verification failed"));
       }
@@ -175,20 +170,14 @@ export function LoginPage() {
     const email = values.email.trim().toLowerCase();
 
     try {
-      const response = await axiosApiInstance.post("/auth/login", {
+      const response = await axiosApiInstance.post<LoginResponse>("/auth/login", {
         email,
         password: values.password,
       });
 
-      const responseData = response.data as ApiSuccessResponse<{ user: AuthUser }> & {
-        user?: AuthUser;
-      };
+      const user = response.data.data?.user ?? response.data.user;
 
-      const user = getUserFromLoginResponse(responseData);
-
-      if (responseData.success !== false) {
-        toast.success(responseData.message ?? "Login successful");
-      }
+      toast.success(response.data.message ?? "Login successful");
 
       navigate({ to: getDashboardRoute(user) });
     } catch (error) {
@@ -220,6 +209,41 @@ export function LoginPage() {
     validateOnChange: true,
     onSubmit: handleForm,
   });
+  useEffect(() => {
+    let isMounted = true;
+
+    async function redirectIfAuthenticated() {
+      const user = await getAuthUser();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (user) {
+        navigate({ to: getDashboardRoute(user) });
+        return;
+      }
+
+      setIsCheckingSession(false);
+    }
+
+    void redirectIfAuthenticated();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [navigate]);
+
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-muted/30 p-4">
+        <div className="text-sm text-muted-foreground">
+          Checking session...
+        </div>
+      </div>
+    );
+  }
+
 
   return (
     <div className="min-h-screen grid place-items-center bg-muted/30 p-4">
