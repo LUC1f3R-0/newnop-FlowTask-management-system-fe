@@ -69,11 +69,11 @@ export function OtpVerificationModal({
               name="otp"
               value={otp}
               onChange={(event) => {
-                const value = event.target.value.replace(/\D/g, "").slice(0, 6);
+                const value = event.target.value.replace(/\D/g, "").slice(0, 5);
                 onOtpChange(value);
               }}
               onBlur={onOtpBlur}
-              placeholder="000000"
+              placeholder="00000"
               inputMode="numeric"
               disabled={isSubmitting}
               className="w-36 text-center text-lg tracking-[0.35em] font-mono"

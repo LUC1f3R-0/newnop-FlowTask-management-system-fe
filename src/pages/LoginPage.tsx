@@ -63,7 +63,7 @@ const loginValidationSchema = Yup.object({
 
 const otpValidationSchema = Yup.object({
   otp: Yup.string()
-    .matches(/^\d{6}$/, "OTP must be exactly 6 digits")
+    .matches(/^\d{5}$/, "OTP must be exactly 5 digits")
     .required("OTP is required"),
 });
 
