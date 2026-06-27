@@ -2,46 +2,77 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AxiosError } from "axios";
+import { useFormik } from "formik";
+import * as Yup from "yup";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { CheckSquare } from "lucide-react";
+import { CheckSquare, Eye, EyeOff } from "lucide-react";
 import { axiosApiInstance } from "@/lib/apiInstance";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { OtpVerificationModal } from "@/components/OtpVerificationModal";
 
 type ApiErrorResponse = {
   message?: string | string[];
   errors?: unknown;
 };
 
+type RegisterFormValues = {
+  name: string;
+  email: string;
+  password: string;
+  confirm: string;
+};
+
+type OtpFormValues = {
+  otp: string;
+};
+
+const registerValidationSchema = Yup.object({
+  name: Yup.string()
+    .trim()
+    .min(2, "Full name must be at least 2 characters")
+    .max(100, "Full name must be less than 100 characters")
+    .required("Full name is required"),
+
+  email: Yup.string()
+    .trim()
+    .email("Enter a valid email address")
+    .required("Email is required"),
+
+  password: Yup.string()
+    .min(8, "Password must be at least 8 characters")
+    .required("Password is required"),
+
+  confirm: Yup.string()
+    .oneOf([Yup.ref("password")], "Password and confirm password do not match")
+    .required("Confirm password is required"),
+});
+
+const otpValidationSchema = Yup.object({
+  otp: Yup.string()
+    .matches(/^\d{5}$/, "OTP must be exactly 6 digits")
+    .required("OTP is required"),
+});
+
+type FormFieldErrorProps = {
+  error?: string;
+  touched?: boolean;
+};
+
+function FormFieldError({ error, touched }: FormFieldErrorProps) {
+  if (!touched || !error) return null;
+
+  return <p className="text-xs text-destructive">{error}</p>;
+}
+
 export function RegisterPage() {
   const navigate = useNavigate();
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
-  const [otp, setOtp] = useState("");
-
   const [registeredEmail, setRegisteredEmail] = useState("");
-
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirm: "",
-  });
-
-  const set = (k: keyof typeof form, v: string) =>
-    setForm((p) => ({ ...p, [k]: v }));
+  const [showPassword, setShowPassword] = useState(false);
 
   const getErrorMessage = (error: unknown, fallback: string) => {
     const axiosError = error as AxiosError<ApiErrorResponse>;
@@ -54,65 +85,62 @@ export function RegisterPage() {
     return message ?? fallback;
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const registerFormik = useFormik<RegisterFormValues>({
+    initialValues: {
+      name: "",
+      email: "",
+      password: "",
+      confirm: "",
+    },
+    validationSchema: registerValidationSchema,
+    validateOnBlur: true,
+    validateOnChange: true,
+    onSubmit: async (values) => {
+      try {
+        await axiosApiInstance.post("/auth/register", {
+          fullName: values.name.trim(),
+          email: values.email.trim(),
+          password: values.password,
+          confirmPassword: values.confirm,
+        });
 
-    if (form.password !== form.confirm) {
-      toast.error("Password and confirm password do not match");
-      return;
-    }
+        setRegisteredEmail(values.email.trim());
+        otpFormik.resetForm();
+        setIsOtpModalOpen(true);
 
-    try {
-      setIsSubmitting(true);
+        toast.success("Account created. Verification OTP sent to your email.");
+      } catch (error) {
+        toast.error(getErrorMessage(error, "Registration failed"));
+      }
+    },
+  });
 
-      await axiosApiInstance.post("/auth/register", {
-        fullName: form.name,
-        email: form.email,
-        password: form.password,
-        confirmPassword: form.confirm,
-      });
+  const otpFormik = useFormik<OtpFormValues>({
+    initialValues: {
+      otp: "",
+    },
+    validationSchema: otpValidationSchema,
+    validateOnBlur: true,
+    validateOnChange: true,
+    onSubmit: async (values) => {
+      try {
+        await axiosApiInstance.post("/auth/verify-email", {
+          email: registeredEmail,
+          otp: values.otp.trim(),
+        });
 
-      setRegisteredEmail(form.email);
-      setOtp("");
-      setIsOtpModalOpen(true);
+        toast.success("Email verified successfully. You can now login.");
 
-      toast.success("Account created. Verification OTP sent to your email.");
-    } catch (error) {
-      toast.error(getErrorMessage(error, "Registration failed"));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+        setIsOtpModalOpen(false);
 
-  const handleVerifyOtp = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    if (!otp.trim()) {
-      toast.error("Please enter the OTP");
-      return;
-    }
-
-    try {
-      setIsVerifying(true);
-
-      await axiosApiInstance.post("/auth/verify-email", {
-        email: registeredEmail,
-        otp: otp.trim(),
-      });
-
-      toast.success("Email verified successfully. You can now login.");
-
-      setIsOtpModalOpen(false);
-
-      navigate({
-        to: "/login",
-      });
-    } catch (error) {
-      toast.error(getErrorMessage(error, "OTP verification failed"));
-    } finally {
-      setIsVerifying(false);
-    }
-  };
+        navigate({
+          to: "/login",
+        });
+      } catch (error) {
+        toast.error(getErrorMessage(error, "OTP verification failed"));
+      }
+    },
+  });
 
   const handleResendOtp = async () => {
     if (!registeredEmail) {
@@ -152,16 +180,21 @@ export function RegisterPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={registerFormik.handleSubmit} className="space-y-4" noValidate>
             <div className="space-y-2">
               <Label htmlFor="name">Full name</Label>
               <Input
                 id="name"
-                value={form.name}
-                onChange={(e) => set("name", e.target.value)}
+                name="name"
+                value={registerFormik.values.name}
+                onChange={registerFormik.handleChange}
+                onBlur={registerFormik.handleBlur}
                 placeholder="Jane Doe"
-                required
-                disabled={isSubmitting}
+                disabled={registerFormik.isSubmitting}
+              />
+              <FormFieldError
+                touched={registerFormik.touched.name}
+                error={registerFormik.errors.name}
               />
             </div>
 
@@ -169,25 +202,54 @@ export function RegisterPage() {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
-                type="email"
-                value={form.email}
-                onChange={(e) => set("email", e.target.value)}
+                name="email"
+                type="text"
+                value={registerFormik.values.email}
+                onChange={registerFormik.handleChange}
+                onBlur={registerFormik.handleBlur}
                 placeholder="you@example.com"
-                required
-                disabled={isSubmitting}
+                disabled={registerFormik.isSubmitting}
+              />
+              <FormFieldError
+                touched={registerFormik.touched.email}
+                error={registerFormik.errors.email}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={form.password}
-                onChange={(e) => set("password", e.target.value)}
-                placeholder="••••••••"
-                required
-                disabled={isSubmitting}
+
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  value={registerFormik.values.password}
+                  onChange={registerFormik.handleChange}
+                  onBlur={registerFormik.handleBlur}
+                  placeholder="* * * * * * * * * *"
+                  disabled={registerFormik.isSubmitting}
+                  className="pr-10"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  disabled={registerFormik.isSubmitting}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+
+              <FormFieldError
+                touched={registerFormik.touched.password}
+                error={registerFormik.errors.password}
               />
             </div>
 
@@ -195,17 +257,26 @@ export function RegisterPage() {
               <Label htmlFor="confirm">Confirm password</Label>
               <Input
                 id="confirm"
+                name="confirm"
                 type="password"
-                value={form.confirm}
-                onChange={(e) => set("confirm", e.target.value)}
-                placeholder="••••••••"
-                required
-                disabled={isSubmitting}
+                value={registerFormik.values.confirm}
+                onChange={registerFormik.handleChange}
+                onBlur={registerFormik.handleBlur}
+                placeholder="* * * * * * * * * *"
+                disabled={registerFormik.isSubmitting}
+              />
+              <FormFieldError
+                touched={registerFormik.touched.confirm}
+                error={registerFormik.errors.confirm}
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Creating account..." : "Create Account"}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={registerFormik.isSubmitting}
+            >
+              {registerFormik.isSubmitting ? "Creating account..." : "Create Account"}
             </Button>
           </form>
 
@@ -221,53 +292,19 @@ export function RegisterPage() {
         </Card>
       </div>
 
-      <Dialog open={isOtpModalOpen} onOpenChange={setIsOtpModalOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader className="text-center">
-            <DialogTitle>Verify your email</DialogTitle>
-            <DialogDescription>
-              Enter the OTP sent to <span className="font-medium">{registeredEmail}</span>
-            </DialogDescription>
-          </DialogHeader>
-      
-          <form onSubmit={handleVerifyOtp} className="space-y-5">
-            <div className="flex flex-col items-center gap-2">
-              <Label htmlFor="otp">Verification OTP</Label>
-      
-              <Input
-                id="otp"
-                value={otp}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, "").slice(0, 6);
-                  setOtp(value);
-                }}
-                placeholder="000000"
-                inputMode="numeric"
-                maxLength={6}
-                required
-                disabled={isVerifying}
-                className="w-36 text-center text-lg tracking-[0.35em] font-mono"
-              />
-            </div>
-      
-            <div className="space-y-2">
-              <Button type="submit" className="w-full" disabled={isVerifying}>
-                {isVerifying ? "Verifying..." : "Verify Email"}
-              </Button>
-      
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                onClick={handleResendOtp}
-                disabled={isVerifying}
-              >
-                Resend OTP
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <OtpVerificationModal
+        open={isOtpModalOpen}
+        onOpenChange={setIsOtpModalOpen}
+        email={registeredEmail}
+        otp={otpFormik.values.otp}
+        touched={otpFormik.touched.otp}
+        error={otpFormik.errors.otp}
+        isSubmitting={otpFormik.isSubmitting}
+        onOtpChange={(value) => otpFormik.setFieldValue("otp", value)}
+        onOtpBlur={otpFormik.handleBlur}
+        onSubmit={otpFormik.handleSubmit}
+        onResendOtp={handleResendOtp}
+      />
     </div>
   );
 }

@@ -17,6 +17,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { axiosApiInstance } from "@/lib/apiInstance";
+import { toast } from "sonner";
 
 interface NavItem {
   label: string;
@@ -51,9 +53,15 @@ export function DashboardLayout({
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
-  const displayName = role === "admin" ? "Admin User" : "Normal User";
-  const email = role === "admin" ? "admin@gmail.com" : "user@gmail.com";
-
+  const handleLogout = async () => {
+      await axiosApiInstance.post("/auth/logout");
+    try {
+      toast.success("Logged out successfully");
+      navigate({ to: "/login" });
+    } catch {
+      toast.error("Logout failed");
+    }
+  };
   const Sidebar = (
     <aside className="h-full w-64 bg-sidebar text-sidebar-foreground border-r flex flex-col">
       <div className="h-16 px-5 flex items-center gap-2 border-b border-sidebar-border">
@@ -90,7 +98,7 @@ export function DashboardLayout({
       </nav>
       <div className="p-3 border-t border-sidebar-border">
         <button
-          onClick={() => navigate({ to: "/" })}
+          onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sidebar-foreground/80"
         >
           <LogOut className="h-4 w-4" />

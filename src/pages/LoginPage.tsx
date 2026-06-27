@@ -1,21 +1,233 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
+import { useFormik } from "formik";
+import * as Yup from "yup";
+import { AxiosError } from "axios";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { CheckSquare, Shield, User } from "lucide-react";
+import { CheckSquare, Eye, EyeOff } from "lucide-react";
+import { axiosApiInstance } from "@/lib/apiInstance";
+import { OtpVerificationModal } from "@/components/OtpVerificationModal";
+import { toast } from "sonner";
+
+type LoginFormValues = {
+  email: string;
+  password: string;
+};
+
+type OtpFormValues = {
+  otp: string;
+};
+
+type ApiErrorResponse = {
+  code?: string;
+  email?: string;
+  message?: string | string[];
+  errors?: {
+    code?: string;
+    email?: string;
+    message?: string;
+  };
+};
+
+type AuthUser = {
+  uuid: string;
+  name: string;
+  email: string;
+  role: "ADMIN" | "USER";
+  isEmailVerified: boolean;
+};
+
+type ApiSuccessResponse<T> = {
+  success?: boolean;
+  message?: string;
+  data?: T;
+};
+
+const loginValidationSchema = Yup.object({
+  email: Yup.string()
+    .trim()
+    .email("Enter a valid email address")
+    .required("Email is required"),
+
+  password: Yup.string()
+    .min(8, "Password must be at least 8 characters")
+    .required("Password is required"),
+});
+
+const otpValidationSchema = Yup.object({
+  otp: Yup.string()
+    .matches(/^\d{5}$/, "OTP must be exactly 6 digits")
+    .required("OTP is required"),
+});
+
+type FormFieldErrorProps = {
+  error?: string;
+  touched?: boolean;
+};
+
+function FormFieldError({ error, touched }: FormFieldErrorProps) {
+  if (!touched || !error) return null;
+
+  return <p className="text-xs text-destructive">{error}</p>;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  const axiosError = error as AxiosError<ApiErrorResponse>;
+  const message = axiosError.response?.data?.message;
+
+  if (Array.isArray(message)) {
+    return message[0] ?? fallback;
+  }
+
+  return message ?? axiosError.response?.data?.errors?.message ?? fallback;
+}
+
+function getEmailNotVerifiedPayload(error: unknown) {
+  const axiosError = error as AxiosError<ApiErrorResponse>;
+  const status = axiosError.response?.status;
+  const data = axiosError.response?.data;
+  const message = getErrorMessage(error, "");
+
+  const code = data?.code ?? data?.errors?.code;
+
+  const isEmailNotVerified =
+    status === 403 &&
+    (code === "EMAIL_NOT_VERIFIED" ||
+      message.toLowerCase().includes("verify your email"));
+
+  return {
+    isEmailNotVerified,
+    email: data?.email ?? data?.errors?.email,
+  };
+}
+
+function getUserFromLoginResponse(responseData: ApiSuccessResponse<{ user: AuthUser }> & {
+  user?: AuthUser;
+}) {
+  return responseData.data?.user ?? responseData.user;
+}
+
+function getDashboardRoute(user?: AuthUser) {
+  if (user?.role === "ADMIN") {
+    return "/admin/dashboard";
+  }
+
+  return "/user/dashboard";
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState("");
+
+  const otpFormik = useFormik<OtpFormValues>({
+    initialValues: {
+      otp: "",
+    },
+    validationSchema: otpValidationSchema,
+    validateOnBlur: true,
+    validateOnChange: true,
+    onSubmit: async (values) => {
+      try {
+        const response = await axiosApiInstance.post("/auth/verify-email", {
+          email: verificationEmail,
+          otp: values.otp,
+        });
+
+        const message =
+          response.data?.message ?? "Email verified successfully. Please log in again.";
+
+        toast.success(message);
+
+        setIsOtpModalOpen(false);
+        otpFormik.resetForm();
+        loginFormik.setFieldValue("password", "");
+      } catch (error) {
+        toast.error(getErrorMessage(error, "Email verification failed"));
+      }
+    },
+  });
+
+  const handleResendOtp = async () => {
+    if (!verificationEmail) {
+      toast.error("Email is missing. Please try logging in again.");
+      return;
+    }
+
+    try {
+      await axiosApiInstance.post("/auth/resend-verification-otp", {
+        email: verificationEmail,
+      });
+
+      otpFormik.resetForm();
+      toast.success("A new verification OTP was sent to your email.");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to resend OTP"));
+    }
+  };
+
+  const handleForm = async (values: LoginFormValues) => {
+    const email = values.email.trim().toLowerCase();
+
+    try {
+      const response = await axiosApiInstance.post("/auth/login", {
+        email,
+        password: values.password,
+      });
+
+      const responseData = response.data as ApiSuccessResponse<{ user: AuthUser }> & {
+        user?: AuthUser;
+      };
+
+      const user = getUserFromLoginResponse(responseData);
+
+      if (responseData.success !== false) {
+        toast.success(responseData.message ?? "Login successful");
+      }
+
+      navigate({ to: getDashboardRoute(user) });
+    } catch (error) {
+      const { isEmailNotVerified, email: responseEmail } =
+        getEmailNotVerifiedPayload(error);
+
+      if (isEmailNotVerified) {
+        const targetEmail = (responseEmail ?? email).trim().toLowerCase();
+
+        setVerificationEmail(targetEmail);
+        otpFormik.resetForm();
+        setIsOtpModalOpen(true);
+
+        toast.info("A new verification OTP was sent to your email.");
+        return;
+      }
+
+      toast.error(getErrorMessage(error, "Login failed"));
+    }
+  };
+
+  const loginFormik = useFormik<LoginFormValues>({
+    initialValues: {
+      email: "",
+      password: "",
+    },
+    validationSchema: loginValidationSchema,
+    validateOnBlur: true,
+    validateOnChange: true,
+    onSubmit: handleForm,
+  });
 
   return (
     <div className="min-h-screen grid place-items-center bg-muted/30 p-4">
       <div className="w-full max-w-md space-y-6">
-        <Link to="/" className="flex items-center gap-2 justify-center font-semibold text-lg">
+        <Link
+          to="/"
+          className="flex items-center gap-2 justify-center font-semibold text-lg"
+        >
           <span className="h-8 w-8 rounded-lg bg-primary text-primary-foreground grid place-items-center">
             <CheckSquare className="h-4 w-4" />
           </span>
@@ -29,97 +241,100 @@ export function LoginPage() {
               Sign in to continue
             </p>
           </div>
+
           <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              toast.info(
-                "Demo only. Please use Continue as Admin or Continue as User.",
-              );
-            }}
+            onSubmit={loginFormik.handleSubmit}
             className="space-y-4"
+            noValidate
           >
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
+
               <Input
                 id="email"
+                name="email"
                 type="email"
                 placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={loginFormik.values.email}
+                onChange={loginFormik.handleChange}
+                onBlur={loginFormik.handleBlur}
+              />
+
+              <FormFieldError
+                touched={loginFormik.touched.email}
+                error={loginFormik.errors.email}
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="• • • • • • • •"
+                  value={loginFormik.values.password}
+                  onChange={loginFormik.handleChange}
+                  onBlur={loginFormik.handleBlur}
+                  className="pr-10"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+
+              <FormFieldError
+                touched={loginFormik.touched.password}
+                error={loginFormik.errors.password}
               />
             </div>
-            <Button type="submit" className="w-full">
-              Login
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loginFormik.isSubmitting}
+            >
+              {loginFormik.isSubmitting ? "Logging in..." : "Login"}
             </Button>
           </form>
 
-          <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="flex-1 h-px bg-border" />
-            OR DEMO ACCESS
-            <div className="flex-1 h-px bg-border" />
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              onClick={() => navigate({ to: "/admin/dashboard" })}
-            >
-              <Shield className="h-4 w-4 mr-2" /> Continue as Admin
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => navigate({ to: "/user/dashboard" })}
-            >
-              <User className="h-4 w-4 mr-2" /> Continue as User
-            </Button>
-          </div>
-
           <p className="mt-6 text-sm text-center text-muted-foreground">
             Don't have an account?{" "}
-            <Link to="/register" className="text-primary font-medium hover:underline">
+            <Link
+              to="/register"
+              className="text-primary font-medium hover:underline"
+            >
               Register
             </Link>
           </p>
         </Card>
-
-        <Card className="p-5 bg-muted/40">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-            Demo Credentials
-          </div>
-          <div className="grid sm:grid-cols-2 gap-3 text-sm">
-            <div>
-              <div className="font-medium flex items-center gap-1.5">
-                <Shield className="h-3.5 w-3.5" /> Admin
-              </div>
-              <div className="text-muted-foreground mt-1 font-mono text-xs leading-5">
-                admin@gmail.com
-                <br />
-                admin@password123
-              </div>
-            </div>
-            <div>
-              <div className="font-medium flex items-center gap-1.5">
-                <User className="h-3.5 w-3.5" /> User
-              </div>
-              <div className="text-muted-foreground mt-1 font-mono text-xs leading-5">
-                user@gmail.com
-                <br />
-                user@password123
-              </div>
-            </div>
-          </div>
-        </Card>
       </div>
+
+      <OtpVerificationModal
+        open={isOtpModalOpen}
+        onOpenChange={setIsOtpModalOpen}
+        email={verificationEmail}
+        otp={otpFormik.values.otp}
+        touched={otpFormik.touched.otp}
+        error={otpFormik.errors.otp}
+        isSubmitting={otpFormik.isSubmitting}
+        onOtpChange={(value) => otpFormik.setFieldValue("otp", value)}
+        onOtpBlur={otpFormik.handleBlur}
+        onSubmit={otpFormik.handleSubmit}
+        onResendOtp={handleResendOtp}
+      />
     </div>
   );
 }
