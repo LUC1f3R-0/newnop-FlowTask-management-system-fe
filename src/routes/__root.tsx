@@ -18,12 +18,12 @@ import { AdminTasksPage } from "@/pages/admin/AdminTasksPage";
 import { AdminUsersPage } from "@/pages/admin/AdminUsersPage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { AccessDeniedPage } from "@/pages/AccessDeniedPage";
-import { UserDashboardPage } from "@/pages/user/UserDashboardPage";
 import { UserTasksPage } from "@/pages/user/UserTasksPage";
 import { CreateTaskPage } from "@/pages/tasks/CreateTaskPage";
 import { EditTaskPage } from "@/pages/tasks/EditTaskPage";
 import { TaskDetailsPage } from "@/pages/tasks/TaskDetailsPage";
 import { requireAdmin, requireAuth, requireUser } from "@/lib/auth-route";
+import { UserDashboardPage } from "@/pages/user/UserDashboardPage";
 
 function NotFoundComponent() {
   return (

@@ -1,115 +1,261 @@
 import { Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { AxiosError } from "axios";
+import { toast } from "sonner";
+
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
-import { Card } from "@/components/ui/card";
+import { TaskTable } from "@/components/TaskTable";
 import { Button } from "@/components/ui/button";
-import { TaskCard } from "@/components/TaskCard";
-import { StatusBadge } from "@/components/StatusBadge";
-import { PriorityBadge } from "@/components/PriorityBadge";
-import { sampleTasks } from "@/data/sampleData";
+import { Card } from "@/components/ui/card";
+import { CreateTaskModal } from "@/components/CreateTaskModal";
+import { axiosApiInstance } from "@/lib/apiInstance";
+import { getAuthUser, type AuthUser } from "@/lib/auth-route";
+import type { TaskResponse, TasksListApiResponse } from "@/types/tasks";
+import { getTasksFromResponse } from "@/types/tasks";
+
 import {
-  ListTodo,
-  CircleDot,
-  Loader,
   CheckCircle2,
-  Flame,
+  CircleDot,
+  Clock,
+  ListTodo,
+  Loader,
   PlusCircle,
-  Calendar,
 } from "lucide-react";
 
 export function UserDashboardPage() {
-  const myTasks = sampleTasks.filter(
-    (t) => t.assignedTo === "Normal User" || t.createdBy === "Normal User",
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [tasks, setTasks] = useState<TaskResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true);
+
+      const [user, tasksResponse] = await Promise.all([
+        getAuthUser(),
+        axiosApiInstance.get<TasksListApiResponse>("/tasks", {
+          params: {
+            page: 1,
+            limit: 100,
+          },
+        }),
+      ]);
+
+      setAuthUser(user);
+      setTasks(getTasksFromResponse(tasksResponse.data));
+    } catch (error) {
+      const axiosError = error as AxiosError<any>;
+
+      console.error("Fetch user dashboard failed:", {
+        status: axiosError.response?.status,
+        data: axiosError.response?.data,
+      });
+
+      toast.error("Failed to load dashboard");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchDashboardData();
+  }, []);
+
+  const summary = useMemo(() => {
+    const total = tasks.length;
+    const todo = tasks.filter((task) => task.status === "TODO").length;
+    const inProgress = tasks.filter(
+      (task) => task.status === "IN_PROGRESS",
+    ).length;
+    const completed = tasks.filter(
+      (task) => task.status === "COMPLETED",
+    ).length;
+    const highPriority = tasks.filter(
+      (task) => task.priority === "HIGH",
+    ).length;
+
+    return {
+      total,
+      todo,
+      inProgress,
+      completed,
+      highPriority,
+    };
+  }, [tasks]);
+
+  const recentTasks = useMemo(() => tasks.slice(0, 5), [tasks]);
+
+  const highPriorityTasks = useMemo(
+    () => tasks.filter((task) => task.priority === "HIGH").slice(0, 5),
+    [tasks],
   );
+
   return (
     <DashboardLayout role="user">
       <PageHeader
-        title="My Dashboard"
-        description="Your assigned tasks and progress."
+        title={`Welcome${authUser?.name ? `, ${authUser.name}` : ""}`}
+        description="Here is your personal task summary."
         actions={
-          <Button asChild>
-            <Link to="/tasks/create">
+          <>
+            <Button type="button" onClick={() => setCreateOpen(true)}>
               <PlusCircle className="h-4 w-4 mr-1.5" /> Create Task
-            </Link>
-          </Button>
+            </Button>
+
+            <Button asChild variant="outline">
+              <Link to="/user/tasks">
+                <ListTodo className="h-4 w-4 mr-1.5" /> My Tasks
+              </Link>
+            </Button>
+          </>
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-        <StatCard label="My Tasks" value={6} icon={ListTodo} />
-        <StatCard
-          label="Open"
-          value={2}
-          icon={CircleDot}
-          tint="bg-sky-100 text-sky-600"
-        />
-        <StatCard
-          label="In Progress"
-          value={2}
-          icon={Loader}
-          tint="bg-amber-100 text-amber-600"
-        />
-        <StatCard
-          label="Done"
-          value={2}
-          icon={CheckCircle2}
-          tint="bg-emerald-100 text-emerald-600"
-        />
-        <StatCard
-          label="High Priority"
-          value={1}
-          icon={Flame}
-          tint="bg-rose-100 text-rose-600"
-        />
-      </div>
+      {isLoading ? (
+        <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
+          Loading dashboard...
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            <StatCard
+              label="My Tasks"
+              value={summary.total}
+              icon={ListTodo}
+            />
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <h2 className="font-semibold mb-3">Recently Assigned</h2>
-          <div className="grid sm:grid-cols-2 gap-4">
-            {myTasks.slice(0, 4).map((t) => (
-              <TaskCard key={t.id} task={t} />
-            ))}
+            <StatCard
+              label="Todo"
+              value={summary.todo}
+              icon={CircleDot}
+              tint="bg-sky-100 text-sky-600"
+            />
+
+            <StatCard
+              label="In Progress"
+              value={summary.inProgress}
+              icon={Loader}
+              tint="bg-amber-100 text-amber-600"
+            />
+
+            <StatCard
+              label="Completed"
+              value={summary.completed}
+              icon={CheckCircle2}
+              tint="bg-emerald-100 text-emerald-600"
+            />
+
+            <StatCard
+              label="High Priority"
+              value={summary.highPriority}
+              icon={Clock}
+              tint="bg-rose-100 text-rose-600"
+            />
           </div>
-        </div>
-        <div className="space-y-6">
-          <Card className="p-5">
-            <h2 className="font-semibold mb-4">Due Soon</h2>
-            <div className="space-y-3">
-              {myTasks.slice(0, 4).map((t) => (
-                <Link
-                  key={t.id}
-                  to="/tasks/$id"
-                  params={{ id: t.id }}
-                  className="block p-3 rounded-lg border hover:bg-muted/40"
-                >
-                  <div className="font-medium text-sm truncate">{t.title}</div>
-                  <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" /> {t.dueDate}
-                    </span>
-                    <PriorityBadge priority={t.priority} />
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </Card>
-          <Card className="p-5">
-            <h2 className="font-semibold mb-4">My Task Preview</h2>
-            <div className="space-y-3">
-              {(["Open", "In Progress", "Done"] as const).map((s) => (
-                <div key={s} className="flex justify-between items-center">
-                  <StatusBadge status={s} />
-                  <span className="text-sm text-muted-foreground">
-                    {myTasks.filter((t) => t.status === s).length} tasks
-                  </span>
+
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-semibold">Recent Tasks</h2>
+
+                  <Button asChild variant="ghost" size="sm">
+                    <Link to="/user/tasks">View all</Link>
+                  </Button>
                 </div>
-              ))}
+
+                {recentTasks.length === 0 ? (
+                  <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
+                    No tasks found yet.
+                  </div>
+                ) : (
+                  <TaskTable
+                    tasks={recentTasks}
+                    showActions={false}
+                    showPeople={false}
+                  />
+                )}
+              </div>
             </div>
-          </Card>
-        </div>
-      </div>
+
+            <div className="space-y-6">
+              <Card className="p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-semibold">High Priority Tasks</h2>
+
+                  <Button asChild variant="ghost" size="sm">
+                    <Link to="/user/tasks">View all</Link>
+                  </Button>
+                </div>
+
+                {highPriorityTasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No high priority tasks.
+                  </p>
+                ) : (
+                  <TaskTable
+                    tasks={highPriorityTasks}
+                    showActions={false}
+                    showPeople={false}
+                  />
+                )}
+              </Card>
+
+              <Card className="p-5">
+                <h2 className="font-semibold mb-4">Task Progress</h2>
+
+                <div className="space-y-4">
+                  {[
+                    {
+                      label: "Todo",
+                      count: summary.todo,
+                    },
+                    {
+                      label: "In Progress",
+                      count: summary.inProgress,
+                    },
+                    {
+                      label: "Completed",
+                      count: summary.completed,
+                    },
+                  ].map((item) => {
+                    const percentage = Math.round(
+                      (item.count / Math.max(summary.total, 1)) * 100,
+                    );
+
+                    return (
+                      <div key={item.label}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>{item.label}</span>
+
+                          <span className="text-muted-foreground">
+                            {item.count}
+                          </span>
+                        </div>
+
+                        <div className="h-2 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full bg-primary"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            </div>
+          </div>
+        </>
+      )}
+
+      <CreateTaskModal
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onSaved={() => void fetchDashboardData()}
+      />
     </DashboardLayout>
   );
 }

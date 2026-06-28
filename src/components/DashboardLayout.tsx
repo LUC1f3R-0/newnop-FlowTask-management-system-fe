@@ -1,10 +1,9 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   ListTodo,
-  PlusCircle,
   Users,
   User as UserIcon,
   LogOut,
@@ -19,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { axiosApiInstance } from "@/lib/apiInstance";
 import { toast } from "sonner";
+import { getAuthUser, type AuthUser } from "@/lib/auth-route";
 
 interface NavItem {
   label: string;
@@ -29,7 +29,6 @@ interface NavItem {
 const adminNav: NavItem[] = [
   { label: "Dashboard", to: "/admin/dashboard", icon: LayoutDashboard },
   { label: "All Tasks", to: "/admin/tasks", icon: ListTodo },
-  { label: "Create Task", to: "/tasks/create", icon: PlusCircle },
   { label: "Users", to: "/admin/users", icon: Users },
   { label: "Profile", to: "/profile", icon: UserIcon },
 ];
@@ -37,7 +36,6 @@ const adminNav: NavItem[] = [
 const userNav: NavItem[] = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
   { label: "My Tasks", to: "/user/tasks", icon: ListTodo },
-  { label: "Create Task", to: "/tasks/create", icon: PlusCircle },
   { label: "Profile", to: "/profile", icon: UserIcon },
 ];
 
@@ -48,13 +46,36 @@ export function DashboardLayout({
   role: "admin" | "user";
   children: ReactNode;
 }) {
-  const nav = role === "admin" ? adminNav : userNav;
-  const roleLabel = role === "admin" ? "Admin" : "User";
-  const displayName = role === "admin" ? "Admin User" : "Normal User";
-  const email = role === "admin" ? "admin@gmail.com" : "user@gmail.com";
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadAuthUser() {
+      const user = await getAuthUser();
+
+      if (isMounted) {
+        setAuthUser(user);
+      }
+    }
+
+    void loadAuthUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const effectiveRole = authUser?.role === "ADMIN" ? "admin" : role;
+  const nav = effectiveRole === "admin" ? adminNav : userNav;
+  const roleLabel = effectiveRole === "admin" ? "Admin" : "User";
+  const displayName =
+    authUser?.name ?? (effectiveRole === "admin" ? "Admin User" : "Normal User");
+  const email =
+    authUser?.email ?? (effectiveRole === "admin" ? "admin@gmail.com" : "user@gmail.com");
 
   const handleLogout = async () => {
     try {
