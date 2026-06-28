@@ -30,6 +30,10 @@ import type {
   TaskStatus,
 } from "@/types/tasks";
 import { formatTaskDate } from "@/types/tasks";
+import {
+  UserEmailCombobox,
+  type AssignableUser,
+} from "@/components/UserEmailCombobox";
 
 type ApiErrorResponse = {
   message?: string | string[];
@@ -275,13 +279,14 @@ export function TaskDetailsModal({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="assignedToId">Assigned To User UUID</Label>
-                <Input
-                  id="assignedToId"
+                <Label>Assigned To User Email</Label>
+                <UserEmailCombobox
                   value={form.assignedToId}
-                  onChange={(event) => set("assignedToId", event.target.value)}
-                  placeholder="Optional user UUID"
+                  initialUser={initialAssignedUser}
                   disabled={isSubmitting}
+                  onChange={(user) => {
+                    set("assignedToId", user?.id ?? "");
+                  }}
                 />
               </div>
             </div>

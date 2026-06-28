@@ -1,13 +1,13 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -15,19 +15,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  UserEmailCombobox,
+  type AssignableUser,
+} from "@/components/UserEmailCombobox";
 import { axiosApiInstance } from "@/lib/apiInstance";
-import type { TaskPayload, TaskPriority, TaskResponse, TaskStatus } from "@/types/tasks";
+import type {
+  TaskPayload,
+  TaskPriority,
+  TaskResponse,
+  TaskStatus,
+} from "@/types/tasks";
 
-type ApiErrorResponse = {
-  message?: string | string[];
-  errors?: unknown;
-};
+type TaskFormMode = "create" | "edit";
 
 type TaskFormProps = {
-  mode: "create" | "edit";
+  mode?: TaskFormMode;
   initial?: TaskResponse | null;
   onSuccess?: () => void;
   onCancel?: () => void;
+};
+
+type ApiErrorResponse = {
+  message?: string | string[];
 };
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -59,71 +69,74 @@ function createFormState(initial?: TaskResponse | null) {
 }
 
 export function TaskForm({
-  mode,
-  initial,
+  mode = "create",
+  initial = null,
   onSuccess,
   onCancel,
 }: TaskFormProps) {
   const navigate = useNavigate();
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEdit = mode === "edit";
+
   const [form, setForm] = useState(() => createFormState(initial));
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const initialAssignedUser = useMemo<AssignableUser | null>(() => {
+    if (!initial?.assignedTo) return null;
+
+    return {
+      id: initial.assignedTo.id,
+      name: initial.assignedTo.name,
+      email: initial.assignedTo.email,
+      role: "USER",
+    };
+  }, [initial?.assignedTo]);
 
   useEffect(() => {
     setForm(createFormState(initial));
-  }, [initial, mode]);
+  }, [initial]);
 
-  const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
+  const set = <K extends keyof typeof form>(
+    key: K,
+    value: (typeof form)[K],
+  ) => {
     setForm((prev) => ({
       ...prev,
       [key]: value,
     }));
   };
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const payload: TaskPayload = {
-      title: form.title.trim(),
-      description: form.description.trim() || undefined,
-      priority: form.priority,
-      status: form.status,
-      dueDate: form.dueDate || undefined,
-      assignedToId: form.assignedToId.trim() || undefined,
-    };
-
-    if (mode === "create") {
-      await createTask(payload);
-      return;
-    }
-
-    await updateTask(payload);
-  };
-
   const createTask = async (payload: TaskPayload) => {
     try {
       setIsSubmitting(true);
-
-      const response = await axiosApiInstance.post("/tasks/create", payload);
-
-      console.log("Task create response:", response.data);
-
+  
+      console.log("Create task payload:", payload);
+  
+      await axiosApiInstance.post("/tasks/create", payload);
+  
       toast.success("Task created successfully");
-
+  
       if (onSuccess) {
         onSuccess();
         return;
       }
-
-      navigate({ to: "/user/tasks" });
+  
+      await navigate({
+        to: "/user/tasks",
+        search: {
+          status: "all",
+          priority: "all",
+        },
+      });
     } catch (error) {
       const axiosError = error as AxiosError<ApiErrorResponse>;
-
+  
       console.error("Task create failed:", {
         status: axiosError.response?.status,
         data: axiosError.response?.data,
+        message: axiosError.response?.data?.message,
       });
-
+  
       toast.error(getErrorMessage(error, "Failed to create task"));
     } finally {
       setIsSubmitting(false);
@@ -139,12 +152,7 @@ export function TaskForm({
     try {
       setIsSubmitting(true);
 
-      const response = await axiosApiInstance.patch(
-        `/tasks/${initial.id}`,
-        payload,
-      );
-
-      console.log("Task update response:", response.data);
+      await axiosApiInstance.patch(`/tasks/${initial.id}`, payload);
 
       toast.success("Task updated successfully");
 
@@ -153,7 +161,12 @@ export function TaskForm({
         return;
       }
 
-      navigate({ to: "/user/tasks" });
+      await navigate({
+        to: "/tasks/$id",
+        params: {
+          id: initial.id,
+        },
+      });
     } catch (error) {
       const axiosError = error as AxiosError<ApiErrorResponse>;
 
@@ -168,8 +181,35 @@ export function TaskForm({
     }
   };
 
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const title = form.title.trim();
+
+    if (!title) {
+      toast.error("Task title is required");
+      return;
+    }
+
+    const payload: TaskPayload = {
+      title,
+      description: form.description.trim() || undefined,
+      priority: form.priority,
+      status: form.status,
+      dueDate: form.dueDate || undefined,
+      assignedToId: form.assignedToId.trim() || undefined,
+    };
+    console.log("Create task payload:", payload);
+    if (isEdit) {
+      await updateTask(payload);
+      return;
+    }
+
+    await createTask(payload);
+  };
+
   return (
-    <Card className="p-6 max-w-3xl">
+    <Card className="p-5">
       <form onSubmit={submit} className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="title">Title</Label>
@@ -178,9 +218,9 @@ export function TaskForm({
             id="title"
             value={form.title}
             onChange={(event) => set("title", event.target.value)}
-            placeholder="Task title"
-            required
             disabled={isSubmitting}
+            placeholder="Enter task title"
+            required
           />
         </div>
 
@@ -191,9 +231,9 @@ export function TaskForm({
             id="description"
             value={form.description}
             onChange={(event) => set("description", event.target.value)}
-            placeholder="What needs to be done?"
-            rows={4}
             disabled={isSubmitting}
+            placeholder="Enter task description"
+            rows={4}
           />
         </div>
 
@@ -207,7 +247,7 @@ export function TaskForm({
               disabled={isSubmitting}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Select priority" />
               </SelectTrigger>
 
               <SelectContent>
@@ -227,7 +267,7 @@ export function TaskForm({
               disabled={isSubmitting}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Select status" />
               </SelectTrigger>
 
               <SelectContent>
@@ -251,36 +291,39 @@ export function TaskForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="assignedToId">Assigned To User UUID</Label>
+            <Label>Assigned To User Email</Label>
 
-            <Input
-              id="assignedToId"
+            <UserEmailCombobox
               value={form.assignedToId}
-              onChange={(event) => set("assignedToId", event.target.value)}
-              placeholder="Optional user UUID"
+              initialUser={initialAssignedUser}
               disabled={isSubmitting}
+              onChange={(user) => {
+                set("assignedToId", user?.id ?? "");
+              }}
             />
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isSubmitting}
-            onClick={() => {
-              onCancel?.();
-            }}
-          >
-            Cancel
-          </Button>
+        <div className="flex justify-end gap-2 border-t pt-4">
+          {onCancel && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSubmitting}
+              onClick={onCancel}
+            >
+              Cancel
+            </Button>
+          )}
 
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting
-              ? "Saving..."
-              : mode === "create"
-                ? "Create Task"
-                : "Update Task"}
+              ? isEdit
+                ? "Saving..."
+                : "Creating..."
+              : isEdit
+                ? "Save Changes"
+                : "Create Task"}
           </Button>
         </div>
       </form>
