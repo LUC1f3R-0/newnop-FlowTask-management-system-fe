@@ -10,11 +10,11 @@ Normal users can register, verify their email with OTP, log in, view their dashb
 
 ## Demo Login Details
 
-### Normal User
+### Admin User
 
 ```txt
-Email: gamil.com
-Password: 42575642184710
+Email: lucif3r7h3arc4n9el@gmail.com
+Password: admin@password123
 ```
 
 > Note: This is the demo user login information provided for testing. Make sure the backend database already has this user before trying to log in.
