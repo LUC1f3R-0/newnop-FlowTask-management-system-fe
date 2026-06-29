@@ -1,6 +1,6 @@
 # FlowTask Frontend
 
-**Backend Repository:** `https://github.com/LUC1f3R-0/newnop-FlowTask-management-system-be.git`
+**Backend Repository:** `[https://github.com/LUC1f3R-0/newnop-FlowTask-management-system-be.git]`
 
 FlowTask is a role-based task management frontend built with React. It connects to the FlowTask backend API and supports two main user roles: normal users and admin users.
 
