@@ -24,7 +24,6 @@ export type TaskResponse = {
   priority: TaskPriority;
   status: TaskStatus;
   dueDate: string | null;
-  deletedAt?: string | null;
   createdBy: TaskUser;
   assignedTo: TaskUser | null;
   createdAt: string;

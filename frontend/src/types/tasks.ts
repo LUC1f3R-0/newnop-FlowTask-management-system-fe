@@ -88,3 +88,9 @@ export function formatTaskDate(date: string | null) {
 
   return new Date(date).toLocaleDateString();
 }
+
+export function formatDateTime(date?: string | null) {
+  if (!date) return "Not available";
+
+  return new Date(date).toLocaleString();
+}

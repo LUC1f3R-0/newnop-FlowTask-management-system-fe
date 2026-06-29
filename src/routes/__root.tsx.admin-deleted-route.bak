@@ -15,7 +15,6 @@ import { LoginPage } from "@/pages/LoginPage";
 import { RegisterPage } from "@/pages/RegisterPage";
 import { AdminDashboardPage } from "@/pages/admin/AdminDashboardPage";
 import { AdminTasksPage } from "@/pages/admin/AdminTasksPage";
-import { AdminDeletedTasksPage } from "@/pages/admin/AdminDeletedTasksPage";
 import { AdminUsersPage } from "@/pages/admin/AdminUsersPage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { AccessDeniedPage } from "@/pages/AccessDeniedPage";
@@ -139,14 +138,6 @@ const adminTasksRoute = createRoute({
   component: AdminTasksPage,
 });
 
-
-const adminDeletedTasksRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/admin/deleted",
-  beforeLoad: requireAdmin,
-  component: AdminDeletedTasksPage,
-});
-
 const adminUsersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/users",
@@ -215,7 +206,6 @@ export const routeTree = rootRoute.addChildren([
   registerRoute,
   adminDashboardRoute,
   adminTasksRoute,
-  adminDeletedTasksRoute,
   adminUsersRoute,
   userDashboardRoute,
   legacyUserDashboardRoute,
