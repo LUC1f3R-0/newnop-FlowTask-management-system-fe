@@ -8,15 +8,28 @@ import { PriorityBadge } from "@/components/PriorityBadge";
 import type { TaskResponse } from "@/types/tasks";
 import { formatTaskDate } from "@/types/tasks";
 
-export function TaskCard({
-  task,
-  onDelete,
-}: {
+type TaskCardProps = {
   task: TaskResponse;
+  onSelect?: (task: TaskResponse) => void;
   onDelete?: (task: TaskResponse) => void;
-}) {
+};
+
+export function TaskCard({ task, onSelect, onDelete }: TaskCardProps) {
   return (
-    <Card className="p-5 flex flex-col gap-3">
+    <Card
+      className="p-5 flex flex-col gap-3 cursor-pointer hover:bg-muted/40 transition"
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onClick={() => onSelect?.(task)}
+      onKeyDown={(event) => {
+        if (!onSelect) return;
+
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(task);
+        }
+      }}
+    >
       <div className="flex items-start justify-between gap-2">
         <h3 className="font-semibold leading-tight">{task.title}</h3>
         <PriorityBadge priority={task.priority} />
@@ -42,7 +55,10 @@ export function TaskCard({
         </div>
       </div>
 
-      <div className="flex gap-2 pt-2 border-t mt-auto">
+      <div
+        className="flex gap-2 pt-2 border-t mt-auto"
+        onClick={(event) => event.stopPropagation()}
+      >
         <Button asChild size="sm" variant="outline" className="flex-1">
           <Link to="/tasks/$id" params={{ id: task.id }}>
             <Eye className="h-3.5 w-3.5 mr-1" /> View
@@ -55,9 +71,16 @@ export function TaskCard({
           </Link>
         </Button>
 
-        <Button size="sm" variant="outline" onClick={() => onDelete?.(task)}>
-          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-        </Button>
+        {onDelete && (
+          <Button
+            size="sm"
+            variant="outline"
+            type="button"
+            onClick={() => onDelete(task)}
+          >
+            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          </Button>
+        )}
       </div>
     </Card>
   );

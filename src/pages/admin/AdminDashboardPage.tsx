@@ -93,9 +93,9 @@ export function AdminDashboardPage() {
             </Button>
 
             <Button asChild variant="outline">
-              <Link to="/admin/tasks?status=all&priority=all">
+              <a href="/admin/tasks?status=all&priority=all">
                 <Settings className="h-4 w-4 mr-1.5" /> Manage Tasks
-              </Link>
+              </a>
             </Button>
 
             <Button asChild variant="outline">
@@ -169,10 +169,7 @@ export function AdminDashboardPage() {
             ) : (
               <div className="space-y-3">
                 {highPriorityTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="block p-3 rounded-lg border"
-                  >
+                  <div key={task.id} className="block p-3 rounded-lg border">
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-medium truncate">{task.title}</div>
                       <PriorityBadge priority={task.priority} />

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 
@@ -79,6 +79,17 @@ export function TaskDetailsModal({
     dueDate: "",
     assignedToId: "",
   });
+
+  const initialAssignedUser = useMemo<AssignableUser | null>(() => {
+    if (!task?.assignedTo) return null;
+
+    return {
+      id: task.assignedTo.id,
+      name: task.assignedTo.name,
+      email: task.assignedTo.email,
+      role: "USER",
+    };
+  }, [task?.assignedTo]);
 
   useEffect(() => {
     if (!task) return;
