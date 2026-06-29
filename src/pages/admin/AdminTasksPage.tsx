@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { PlusCircle } from "lucide-react";
@@ -13,66 +13,32 @@ import { EmptyState } from "@/components/EmptyState";
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { CreateTaskModal } from "@/components/CreateTaskModal";
 import { TaskDetailsModal } from "@/components/TaskDetailsModal";
+import { PaginationControls } from "@/components/PaginationControls";
 import { axiosApiInstance } from "@/lib/apiInstance";
 import type {
+  TaskListMeta,
   TaskPriority,
   TaskResponse,
   TaskStatus,
   TasksListApiResponse,
 } from "@/types/tasks";
-import { getTasksFromResponse } from "@/types/tasks";
+import { getTasksFromResponse, getTasksMetaFromResponse } from "@/types/tasks";
 
 type StatusFilter = "all" | TaskStatus;
 type PriorityFilter = "all" | TaskPriority;
 
-function readStatusFromUrl(): StatusFilter {
-  const value = new URLSearchParams(window.location.search).get("status");
+const PAGE_LIMIT = 10;
 
-  if (value === "TODO") return "TODO";
-  if (value === "IN_PROGRESS") return "IN_PROGRESS";
-  if (value === "COMPLETED") return "COMPLETED";
-
-  return "all";
-}
-
-function readPriorityFromUrl(): PriorityFilter {
-  const value = new URLSearchParams(window.location.search).get("priority");
-
-  if (value === "LOW") return "LOW";
-  if (value === "MEDIUM") return "MEDIUM";
-  if (value === "HIGH") return "HIGH";
-
-  return "all";
-}
-
-function replaceUrlWithFilters(status: StatusFilter, priority: PriorityFilter) {
-  const params = new URLSearchParams(window.location.search);
-
-  params.set("status", status);
-  params.set("priority", priority);
-
-  window.history.replaceState(
-    null,
-    "",
-    `${window.location.pathname}?${params.toString()}`,
-  );
-}
-
-function pushUrlWithFilters(status: StatusFilter, priority: PriorityFilter) {
-  const params = new URLSearchParams(window.location.search);
-
-  params.set("status", status);
-  params.set("priority", priority);
-
-  window.history.pushState(
-    null,
-    "",
-    `${window.location.pathname}?${params.toString()}`,
-  );
-}
+const DEFAULT_META: TaskListMeta = {
+  page: 1,
+  limit: PAGE_LIMIT,
+  total: 0,
+  totalPages: 1,
+};
 
 export function AdminTasksPage() {
   const [tasks, setTasks] = useState<TaskResponse[]>([]);
+  const [meta, setMeta] = useState<TaskListMeta>(DEFAULT_META);
   const [isLoading, setIsLoading] = useState(true);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -83,11 +49,10 @@ export function AdminTasksPage() {
   const [toDelete, setToDelete] = useState<TaskResponse | null>(null);
 
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<StatusFilter>(() => readStatusFromUrl());
-  const [priority, setPriority] = useState<PriorityFilter>(() =>
-    readPriorityFromUrl(),
-  );
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [priority, setPriority] = useState<PriorityFilter>("all");
   const [view, setView] = useState<"table" | "card">("table");
+  const [page, setPage] = useState(1);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -97,19 +62,24 @@ export function AdminTasksPage() {
         "/tasks",
         {
           params: {
-            page: 1,
-            limit: 100,
-
-            // IMPORTANT:
-            // URL can show "all", but API should not receive "all".
-            // If all, backend gets undefined and Prisma does not filter that field.
+            page,
+            limit: PAGE_LIMIT,
+            search: search.trim() || undefined,
             status: status === "all" ? undefined : status,
             priority: priority === "all" ? undefined : priority,
           },
         },
       );
 
-      setTasks(getTasksFromResponse(response.data));
+      const nextTasks = getTasksFromResponse(response.data);
+      const nextMeta = getTasksMetaFromResponse(response.data);
+
+      setTasks(nextTasks);
+      setMeta(nextMeta);
+
+      if (nextMeta.totalPages > 0 && page > nextMeta.totalPages) {
+        setPage(nextMeta.totalPages);
+      }
     } catch (error) {
       const axiosError = error as AxiosError<any>;
 
@@ -122,28 +92,11 @@ export function AdminTasksPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [status, priority]);
-
-  useEffect(() => {
-    replaceUrlWithFilters(status, priority);
-  }, []);
+  }, [page, search, status, priority]);
 
   useEffect(() => {
     void fetchTasks();
   }, [fetchTasks]);
-
-  useEffect(() => {
-    const handleBackForward = () => {
-      setStatus(readStatusFromUrl());
-      setPriority(readPriorityFromUrl());
-    };
-
-    window.addEventListener("popstate", handleBackForward);
-
-    return () => {
-      window.removeEventListener("popstate", handleBackForward);
-    };
-  }, []);
 
   const deleteTask = async () => {
     if (!toDelete) return;
@@ -167,14 +120,6 @@ export function AdminTasksPage() {
     }
   };
 
-  const visibleTasks = useMemo(
-    () =>
-      tasks.filter((task) =>
-        task.title.toLowerCase().includes(search.toLowerCase()),
-      ),
-    [tasks, search],
-  );
-
   return (
     <DashboardLayout role="admin">
       <PageHeader
@@ -189,7 +134,10 @@ export function AdminTasksPage() {
 
       <SearchAndFilterBar
         search={search}
-        onSearchChange={setSearch}
+        onSearchChange={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
         view={view}
         onViewChange={setView}
         filters={[
@@ -197,26 +145,22 @@ export function AdminTasksPage() {
             label: "Status",
             value: status,
             onChange: (value) => {
-              const nextStatus = value as StatusFilter;
-
-              setStatus(nextStatus);
-              pushUrlWithFilters(nextStatus, priority);
+              setStatus(value as StatusFilter);
+              setPage(1);
             },
             options: [
               { label: "All Status", value: "all" },
-              { label: "Todo", value: "TODO" },
+              { label: "Open", value: "TODO" },
               { label: "In Progress", value: "IN_PROGRESS" },
-              { label: "Completed", value: "COMPLETED" },
+              { label: "Done", value: "COMPLETED" },
             ],
           },
           {
             label: "Priority",
             value: priority,
             onChange: (value) => {
-              const nextPriority = value as PriorityFilter;
-
-              setPriority(nextPriority);
-              pushUrlWithFilters(status, nextPriority);
+              setPriority(value as PriorityFilter);
+              setPage(1);
             },
             options: [
               { label: "All Priority", value: "all" },
@@ -232,11 +176,11 @@ export function AdminTasksPage() {
         <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
           Loading tasks...
         </div>
-      ) : visibleTasks.length === 0 ? (
+      ) : tasks.length === 0 ? (
         <EmptyState />
       ) : view === "table" ? (
         <TaskTable
-          tasks={visibleTasks}
+          tasks={tasks}
           onSelect={(task) => {
             setSelectedTask(task);
             setDetailsOpen(true);
@@ -245,7 +189,7 @@ export function AdminTasksPage() {
         />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {visibleTasks.map((task) => (
+          {tasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
@@ -259,10 +203,21 @@ export function AdminTasksPage() {
         </div>
       )}
 
+      <PaginationControls
+        page={meta.page}
+        limit={meta.limit}
+        total={meta.total}
+        totalPages={meta.totalPages}
+        onPageChange={setPage}
+      />
+
       <CreateTaskModal
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onSaved={() => void fetchTasks()}
+        onSaved={() => {
+          setPage(1);
+          void fetchTasks();
+        }}
       />
 
       <TaskDetailsModal

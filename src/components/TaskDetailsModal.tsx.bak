@@ -271,9 +271,9 @@ export function TaskDetailsModal({
                   </SelectTrigger>
 
                   <SelectContent>
-                    <SelectItem value="TODO">Open</SelectItem>
+                    <SelectItem value="TODO">Todo</SelectItem>
                     <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                    <SelectItem value="COMPLETED">Done</SelectItem>
+                    <SelectItem value="COMPLETED">Completed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

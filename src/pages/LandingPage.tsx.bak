@@ -26,7 +26,7 @@ const features = [
   {
     icon: Workflow,
     title: "Workflow Tracking",
-    desc: "Move tasks through Open, In Progress, and Done.",
+    desc: "Move tasks through Open, In Progress, Testing, and Done.",
   },
   {
     icon: Search,
@@ -46,7 +46,7 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28 text-center">
           <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Full-stack task management assignment
+            Frontend demo — no backend required
           </div>
           <h1 className="mt-6 text-4xl sm:text-6xl font-semibold tracking-tight">
             Manage team tasks <br className="hidden sm:block" />
@@ -122,7 +122,7 @@ export function LandingPage() {
             </span>
             FlowTask © {new Date().getFullYear()}
           </div>
-          <div>Built as a full-stack task management system.</div>
+          <div>Built as a frontend demo.</div>
         </div>
       </footer>
     </div>

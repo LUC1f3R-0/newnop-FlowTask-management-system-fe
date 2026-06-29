@@ -196,14 +196,14 @@ export function AdminDashboardPage() {
 
             <div className="space-y-3">
               {[
-                { label: "Open", status: "TODO" as const, count: todoTasks },
+                { label: "Todo", status: "TODO" as const, count: todoTasks },
                 {
                   label: "In Progress",
                   status: "IN_PROGRESS" as const,
                   count: inProgressTasks,
                 },
                 {
-                  label: "Done",
+                  label: "Completed",
                   status: "COMPLETED" as const,
                   count: completedTasks,
                 },

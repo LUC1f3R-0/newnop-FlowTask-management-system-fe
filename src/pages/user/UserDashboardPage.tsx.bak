@@ -209,7 +209,7 @@ export function UserDashboardPage() {
                 <div className="space-y-4">
                   {[
                     {
-                      label: "Open",
+                      label: "Todo",
                       count: summary.todo,
                     },
                     {
@@ -217,7 +217,7 @@ export function UserDashboardPage() {
                       count: summary.inProgress,
                     },
                     {
-                      label: "Done",
+                      label: "Completed",
                       count: summary.completed,
                     },
                   ].map((item) => {

@@ -30,23 +30,20 @@ export type TaskResponse = {
   updatedAt: string;
 };
 
-export type TaskListMeta = {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-};
-
 export type TasksListData = {
   tasks: TaskResponse[];
-  meta: TaskListMeta;
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 };
 
 export type TasksListApiResponse = {
   success?: boolean;
   message?: string;
   data?: TasksListData;
-  meta?: TaskListMeta | null;
   tasks?: TaskResponse[];
 };
 
@@ -54,26 +51,10 @@ export function getTasksFromResponse(responseData: TasksListApiResponse) {
   return responseData.data?.tasks ?? responseData.tasks ?? [];
 }
 
-export function getTasksMetaFromResponse(
-  responseData: TasksListApiResponse,
-): TaskListMeta {
-  const tasks = getTasksFromResponse(responseData);
-
-  return (
-    responseData.data?.meta ??
-    responseData.meta ?? {
-      page: 1,
-      limit: Math.max(tasks.length, 10),
-      total: tasks.length,
-      totalPages: 1,
-    }
-  );
-}
-
 export function formatTaskStatus(status: TaskStatus) {
-  if (status === "TODO") return "Open";
+  if (status === "TODO") return "Todo";
   if (status === "IN_PROGRESS") return "In Progress";
-  return "Done";
+  return "Completed";
 }
 
 export function formatTaskPriority(priority: TaskPriority) {
