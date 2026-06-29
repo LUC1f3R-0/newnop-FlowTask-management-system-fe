@@ -7,11 +7,24 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { CheckSquare, Eye, EyeOff } from "lucide-react";
+import {
+  CheckSquare,
+  Eye,
+  EyeOff,
+  Mail,
+  ArrowLeft,
+} from "lucide-react";
 import { axiosApiInstance } from "@/lib/apiInstance";
 import { getAuthUser } from "@/lib/auth-route";
 import { OtpVerificationModal } from "@/components/OtpVerificationModal";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type LoginFormValues = {
   email: string;
@@ -20,6 +33,10 @@ type LoginFormValues = {
 
 type OtpFormValues = {
   otp: string;
+};
+
+type ForgotPasswordFormValues = {
+  email: string;
 };
 
 type AuthUser = {
@@ -59,6 +76,13 @@ const loginValidationSchema = Yup.object({
   password: Yup.string()
     .min(8, "Password must be at least 8 characters")
     .required("Password is required"),
+});
+
+const forgotPasswordValidationSchema = Yup.object({
+  email: Yup.string()
+    .trim()
+    .email("Enter a valid email address")
+    .required("Email is required"),
 });
 
 const otpValidationSchema = Yup.object({
@@ -123,6 +147,7 @@ export function LoginPage() {
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState("");
   const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
   const otpFormik = useFormik<OtpFormValues>({
     initialValues: {
@@ -144,6 +169,36 @@ export function LoginPage() {
         otpFormik.resetForm();
       } catch (error) {
         toast.error(getErrorMessage(error, "Email verification failed"));
+      }
+    },
+  });
+
+  const forgotPasswordFormik = useFormik<ForgotPasswordFormValues>({
+    initialValues: {
+      email: "",
+    },
+    validationSchema: forgotPasswordValidationSchema,
+    validateOnBlur: true,
+    validateOnChange: true,
+    onSubmit: async (values) => {
+      try {
+        await axiosApiInstance.post("/auth/forgot-password", {
+          email: values.email.trim().toLowerCase(),
+        });
+
+        toast.success("Password reset instructions sent", {
+          description: "Please check your email to continue.",
+        });
+
+        setIsForgotPasswordOpen(false);
+        forgotPasswordFormik.resetForm();
+      } catch (error) {
+        toast.error(
+          getErrorMessage(
+            error,
+            "Password reset is not available yet. Backend endpoint is required.",
+          ),
+        );
       }
     },
   });
@@ -179,7 +234,9 @@ export function LoginPage() {
 
       toast.success(response.data.message ?? "Login successful");
 
-      navigate({ to: getDashboardRoute(user) });
+      navigate({
+        to: getDashboardRoute(user),
+      });
     } catch (error) {
       const { isEmailNotVerified, email: responseEmail } =
         getEmailNotVerifiedPayload(error);
@@ -209,6 +266,7 @@ export function LoginPage() {
     validateOnChange: true,
     onSubmit: handleForm,
   });
+
   useEffect(() => {
     let isMounted = true;
 
@@ -220,7 +278,9 @@ export function LoginPage() {
       }
 
       if (user) {
-        navigate({ to: getDashboardRoute(user) });
+        navigate({
+          to: getDashboardRoute(user),
+        });
         return;
       }
 
@@ -234,25 +294,30 @@ export function LoginPage() {
     };
   }, [navigate]);
 
+  const openForgotPassword = () => {
+    const loginEmail = loginFormik.values.email.trim();
+
+    forgotPasswordFormik.setFieldValue("email", loginEmail);
+    forgotPasswordFormik.setTouched({});
+    setIsForgotPasswordOpen(true);
+  };
+
   if (isCheckingSession) {
     return (
-      <div className="min-h-screen grid place-items-center bg-muted/30 p-4">
-        <div className="text-sm text-muted-foreground">
-          Checking session...
-        </div>
+      <div className="grid min-h-screen place-items-center bg-muted/30 p-4">
+        <div className="text-sm text-muted-foreground">Checking session...</div>
       </div>
     );
   }
 
-
   return (
-    <div className="min-h-screen grid place-items-center bg-muted/30 p-4">
+    <div className="grid min-h-screen place-items-center bg-muted/30 p-4">
       <div className="w-full max-w-md space-y-6">
         <Link
           to="/"
-          className="flex items-center gap-2 justify-center font-semibold text-lg"
+          className="flex items-center justify-center gap-2 text-lg font-semibold"
         >
-          <span className="h-8 w-8 rounded-lg bg-primary text-primary-foreground grid place-items-center">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
             <CheckSquare className="h-4 w-4" />
           </span>
           FlowTask
@@ -261,16 +326,12 @@ export function LoginPage() {
         <Card className="p-6 sm:p-8">
           <div className="mb-6 text-center">
             <h1 className="text-2xl font-semibold">Welcome back</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Sign in to continue
+            <p className="mt-1 text-sm text-muted-foreground">
+              Login to continue managing your tasks
             </p>
           </div>
 
-          <form
-            onSubmit={loginFormik.handleSubmit}
-            className="space-y-4"
-            noValidate
-          >
+          <form onSubmit={loginFormik.handleSubmit} className="space-y-4" noValidate>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
 
@@ -278,10 +339,11 @@ export function LoginPage() {
                 id="email"
                 name="email"
                 type="email"
-                placeholder="you@example.com"
                 value={loginFormik.values.email}
                 onChange={loginFormik.handleChange}
                 onBlur={loginFormik.handleBlur}
+                placeholder="you@example.com"
+                disabled={loginFormik.isSubmitting}
               />
 
               <FormFieldError
@@ -291,25 +353,36 @@ export function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="password">Password</Label>
+
+                <button
+                  type="button"
+                  className="text-xs font-medium text-primary hover:underline"
+                  onClick={openForgotPassword}
+                >
+                  Forgot password?
+                </button>
+              </div>
 
               <div className="relative">
                 <Input
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="• • • • • • • •"
                   value={loginFormik.values.password}
                   onChange={loginFormik.handleChange}
                   onBlur={loginFormik.handleBlur}
+                  placeholder="Enter your password"
+                  disabled={loginFormik.isSubmitting}
                   className="pr-10"
                 />
 
                 <button
                   type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  onClick={() => setShowPassword((value) => !value)}
+                  disabled={loginFormik.isSubmitting}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" />
@@ -334,12 +407,9 @@ export function LoginPage() {
             </Button>
           </form>
 
-          <p className="mt-6 text-sm text-center text-muted-foreground">
+          <p className="mt-6 text-center text-sm text-muted-foreground">
             Don't have an account?{" "}
-            <Link
-              to="/register"
-              className="text-primary font-medium hover:underline"
-            >
+            <Link to="/register" className="font-medium text-primary hover:underline">
               Register
             </Link>
           </p>
@@ -354,11 +424,86 @@ export function LoginPage() {
         touched={otpFormik.touched.otp}
         error={otpFormik.errors.otp}
         isSubmitting={otpFormik.isSubmitting}
-        onOtpChange={(value) => otpFormik.setFieldValue("otp", value)}
+        onOtpChange={(otp) => {
+          void otpFormik.setFieldValue("otp", otp);
+        }}
         onOtpBlur={otpFormik.handleBlur}
         onSubmit={otpFormik.handleSubmit}
         onResendOtp={handleResendOtp}
       />
+
+      <Dialog
+        open={isForgotPasswordOpen}
+        onOpenChange={(open) => {
+          setIsForgotPasswordOpen(open);
+
+          if (!open) {
+            forgotPasswordFormik.resetForm();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="mb-2 grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
+              <Mail className="h-6 w-6" />
+            </div>
+
+            <DialogTitle>Forgot password?</DialogTitle>
+
+            <DialogDescription>
+              Enter your email address and we will send password reset
+              instructions if your account exists.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={forgotPasswordFormik.handleSubmit}
+            className="space-y-4"
+            noValidate
+          >
+            <div className="space-y-2">
+              <Label htmlFor="forgot-email">Email address</Label>
+
+              <Input
+                id="forgot-email"
+                name="email"
+                type="email"
+                value={forgotPasswordFormik.values.email}
+                onChange={forgotPasswordFormik.handleChange}
+                onBlur={forgotPasswordFormik.handleBlur}
+                placeholder="you@example.com"
+                disabled={forgotPasswordFormik.isSubmitting}
+              />
+
+              <FormFieldError
+                touched={forgotPasswordFormik.touched.email}
+                error={forgotPasswordFormik.errors.email}
+              />
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={forgotPasswordFormik.isSubmitting}
+                onClick={() => setIsForgotPasswordOpen(false)}
+              >
+                <ArrowLeft className="mr-1.5 h-4 w-4" />
+                Back to login
+              </Button>
+
+              <Button
+                type="submit"
+                disabled={forgotPasswordFormik.isSubmitting}
+              >
+                {forgotPasswordFormik.isSubmitting
+                  ? "Sending..."
+                  : "Send reset link"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
