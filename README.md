@@ -8,17 +8,6 @@ Normal users can register, verify their email with OTP, log in, view their dashb
 
 ---
 
-## Demo Login Details
-
-### Admin User
-
-```txt
-Email: lucif3r7h3arc4n9el@gmail.com
-Password: admin@password123
-```
-
-> Note: This is the demo user login information provided for testing. Make sure the backend database already has this user before trying to log in.
-
 ### Admin User
 
 Admin login depends on the backend seeded admin account. Use the admin credentials created by the backend seed or database administrator.
