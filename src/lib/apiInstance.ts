@@ -9,7 +9,7 @@ type RetriableRequestConfig = InternalAxiosRequestConfig & {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const X_API_KEY = import.meta.env.VITE_X_API_KEY;
-
+console.loog(X_API_KEY)
 const normalizedApiBaseUrl = String(API_BASE_URL ?? "").replace(/\/+$/, "");
 const apiBaseUrl = normalizedApiBaseUrl.endsWith("/api/v1")
   ? normalizedApiBaseUrl
